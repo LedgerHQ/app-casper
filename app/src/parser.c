@@ -289,7 +289,7 @@ parser_error_t parser_getItem_Transfer(ExecutableDeployItem item, parser_context
 
     uint8_t new_displayIdx = displayIdx - item.UI_fixed_items;
 
-    if (new_displayIdx < 0 || new_displayIdx > item.UI_runtime_items) {
+    if ((int8_t) new_displayIdx < 0 || new_displayIdx > item.UI_runtime_items) {
         return parser_no_data;
     }
     uint32_t dataLength = 0;
@@ -370,7 +370,7 @@ parser_error_t parser_getItem_ModuleBytes(ExecutableDeployItem item, parser_cont
     CHECK_PARSER_ERR(readU32(ctx, &dataLen));
 
     uint8_t new_displayIdx = displayIdx - item.UI_fixed_items;
-    if (new_displayIdx < 0 || new_displayIdx > item.UI_runtime_items) {
+    if ((int8_t) new_displayIdx < 0 || new_displayIdx > item.UI_runtime_items) {
         return parser_no_data;
     }
     uint32_t dataLength = 0;
@@ -498,7 +498,7 @@ parser_error_t parse_TTL(uint64_t value, char *buffer, uint16_t bufferSize){
 }
 
 parser_error_t parser_getItem(parser_context_t *ctx,
-                              uint8_t displayIdx,
+                              int8_t displayIdx,
                               char *outKey, uint16_t outKeyLen,
                               char *outVal, uint16_t outValLen,
                               uint8_t pageIdx, uint8_t *pageCount) {
@@ -589,7 +589,7 @@ parser_error_t parser_getItem(parser_context_t *ctx,
     ctx->offset = headerLength(parser_tx_obj.header) + 32;
 
     uint16_t total_payment_items = parser_tx_obj.payment.UI_fixed_items + parser_tx_obj.payment.UI_runtime_items;
-    if (new_displayIdx < total_payment_items) {
+    if ((int8_t) new_displayIdx < total_payment_items) {
         if(parser_tx_obj.payment.special_type == SystemPayment){
             return parser_getItem_SystemPayment(parser_tx_obj.payment, ctx, new_displayIdx, outKey, outKeyLen, outVal,
                                                 outValLen, pageIdx, pageCount);
@@ -603,7 +603,7 @@ parser_error_t parser_getItem(parser_context_t *ctx,
 
     uint16_t total_session_items = parser_tx_obj.session.UI_fixed_items + parser_tx_obj.session.UI_runtime_items;
 
-    if (new_displayIdx < total_session_items) {
+    if ((int8_t) new_displayIdx < total_session_items) {
         special_deploy_e special_type = parser_tx_obj.session.special_type;
         if(special_type == NativeTransfer){
             return parser_getItem_NativeTransfer(parser_tx_obj.session, ctx, new_displayIdx, outKey, outKeyLen, outVal, outValLen, pageIdx, pageCount);
