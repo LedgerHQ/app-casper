@@ -217,10 +217,10 @@ parser_error_t parser_getItem_Delegation(ExecutableDeployItem *item, parser_cont
                 snprintf(outKey, outKeyLen, "Cntrct hash");
                 uint32_t dataLength = 0;
                 CHECK_PARSER_ERR(readU32(ctx, &dataLength))
-                uint64_t value = 0;
-                MEMCPY(&value, &dataLength, 4);
                 uint8_t hash[32];
                 MEMZERO(hash, sizeof(hash));
+                if (dataLength > sizeof(hash) || dataLength > ctx->bufferLen - ctx->offset)
+                    return parser_unexpected_buffer_end;
                 MEMCPY(hash, (ctx->buffer + ctx->offset), dataLength);
                 if (blake2b_hash(ctx->buffer + ctx->offset,dataLength,hash) != zxerr_ok){
                     return parser_unexepected_error;
@@ -376,6 +376,8 @@ parser_error_t parseDelegation(parser_context_t *ctx, ExecutableDeployItem *item
         PARSER_ASSERT_OR_ERROR(type == 10, parser_unexpected_type);
         uint32_t stringLength = 0;
         CHECK_PARSER_ERR(readU32(ctx, &stringLength))
+        if (stringLength > sizeof(buffer) || stringLength > ctx->bufferLen - ctx->offset)
+            return parser_unexpected_buffer_end;
         MEMCPY(buffer, ctx->buffer + ctx->offset, stringLength);
         if (strcmp(buffer, "delegate") == 0){
             item->special_type = Delegate;
