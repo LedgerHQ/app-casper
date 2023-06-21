@@ -25,6 +25,11 @@ extern "C" {
 
 #include <stdint.h>
 #include <stddef.h>
+#include <stdbool.h>
+
+#define DELEGATE_STR    "delegate"
+#define UNDELEGATE_STR  "undelegate"
+#define REDELEGATE_STR  "redelegate"
 
 typedef struct {
     uint8_t pubkeytype;
@@ -51,6 +56,7 @@ typedef enum {
     NativeTransfer = 2,
     Delegate = 3,
     UnDelegate = 4,
+    ReDelegate = 5,
 } special_deploy_e;
 
 typedef enum {
@@ -58,20 +64,31 @@ typedef enum {
     Session = 1,
 } phase_type_e;
 
+typedef enum {
+    Transaction = 0,
+    Message = 1,
+    WasmDeploy = 2,
+} transaction_type_e;
+
 typedef struct {
     phase_type_e phase;
     deploy_type_e type;
     special_deploy_e special_type;
+    uint8_t with_generic_args;
     uint32_t num_runtime_args;
     uint32_t UI_fixed_items;
     uint32_t UI_runtime_items;
     uint32_t totalLength;
+    uint32_t itemOffset;
+    bool hasAmount;
 } ExecutableDeployItem;
 
 typedef struct {
     parser_header_t header;
     ExecutableDeployItem payment;
     ExecutableDeployItem session;
+    transaction_type_e type;
+    uint8_t *wasmHash;
 } parser_tx_t;
 
 #ifdef __cplusplus

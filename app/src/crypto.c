@@ -18,7 +18,9 @@
 #include "coin.h"
 #include "zxmacros.h"
 #include "parser_impl.h"
+#include "zxformat.h"
 
+#define MAX_NIBBLE_LEN  100
 uint32_t hdPath[HDPATH_LEN_DEFAULT];
 
 bool isTestnet() {
@@ -29,13 +31,12 @@ bool isTestnet() {
 const char HEX_CHARS[16] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
 'a', 'b', 'c', 'd', 'e', 'f'};
 
-static bool is_alphabetic(const char byte);
-static void to_uppercase(char* letter);
-static void to_lowercase(char* letter);
-static bool get_next_hash_bit(uint8_t* hash_input, uint8_t* index, uint8_t* offset);
+static bool get_next_hash_bit(char* hash_input, uint8_t* index, uint8_t* offset);
 
-#if defined(TARGET_NANOS) || defined(TARGET_NANOX)
+#if defined(TARGET_NANOS) || defined(TARGET_NANOX) || defined(TARGET_NANOS2) || defined(TARGET_STAX)
 #include "cx.h"
+#include "cx_blake2b.h"
+static cx_blake2b_t body_hash_ctx;
 
 zxerr_t blake2b_hash(const unsigned char *in, unsigned int inLen,
                           unsigned char *out) {
@@ -48,11 +49,12 @@ zxerr_t blake2b_hash(const unsigned char *in, unsigned int inLen,
 zxerr_t crypto_extractPublicKey(const uint32_t path[HDPATH_LEN_DEFAULT], uint8_t *pubKey, uint16_t pubKeyLen) {
     cx_ecfp_public_key_t cx_publicKey;
     cx_ecfp_private_key_t cx_privateKey;
-    uint8_t privateKeyData[32];
+    uint8_t privateKeyData[32] = {0};
 
     if (pubKeyLen < SECP256K1_PK_LEN) {
         return zxerr_invalid_crypto_settings;
     }
+    zxerr_t err = zxerr_ok;
 
     BEGIN_TRY
     {
@@ -65,16 +67,19 @@ zxerr_t crypto_extractPublicKey(const uint32_t path[HDPATH_LEN_DEFAULT], uint8_t
             cx_ecfp_init_private_key(CX_CURVE_256K1, privateKeyData, 32, &cx_privateKey);
             cx_ecfp_init_public_key(CX_CURVE_256K1, NULL, 0, &cx_publicKey);
             cx_ecfp_generate_pair(CX_CURVE_256K1, &cx_publicKey, &cx_privateKey, 1);
+            cx_publicKey.W[0] = cx_publicKey.W[64] & 1 ? 0x03 : 0x02; // "Compress" public key in place
+            memcpy(pubKey, cx_publicKey.W, SECP256K1_PK_LEN);
         }
+        CATCH_ALL {
+            err = zxerr_unknown;
+        };
         FINALLY {
             MEMZERO(&cx_privateKey, sizeof(cx_privateKey));
             MEMZERO(privateKeyData, 32);
         }
     }
     END_TRY;
-    cx_publicKey.W[0] = cx_publicKey.W[64] & 1 ? 0x03 : 0x02; // "Compress" public key in place
-    memcpy(pubKey, cx_publicKey.W, SECP256K1_PK_LEN);
-    return zxerr_ok;
+    return err;
 }
 
 zxerr_t pubkey_to_hash(const uint8_t *pubkey, uint16_t pubkeyLen, uint8_t *out){
@@ -128,22 +133,34 @@ zxerr_t crypto_sign(uint8_t *signature,
                     const uint8_t *message,
                     uint16_t messageLen,
                     uint16_t *sigSize) {
-    UNUSED(messageLen);
 
+    if (signature == NULL || message == NULL || sigSize == NULL || signatureMaxlen < sizeof(signature_t)) {
+        return zxerr_unknown;
+    }
     MEMZERO(signature, signatureMaxlen);
 
-    const uint8_t *message_digest = message + headerLength(parser_tx_obj.header);
+    uint8_t hash[CX_SHA256_SIZE] = {0};
+    switch (parser_tx_obj.type) {
+        case WasmDeploy:
+        case Transaction: {
+            const uint8_t *message_digest = message + headerLength(parser_tx_obj.header);
+            cx_hash_sha256(message_digest, CX_SHA256_SIZE, hash, CX_SHA256_SIZE);
+            break;
+        }
+        case Message:
+            cx_hash_sha256(message, messageLen, hash, CX_SHA256_SIZE);
+            break;
 
-    uint8_t hash[CX_SHA256_SIZE];
-    MEMCPY(hash, message_digest, CX_SHA256_SIZE);
-    cx_hash_sha256(message_digest, CX_SHA256_SIZE, hash, CX_SHA256_SIZE);
+        default:
+            return zxerr_unknown;
+    }
 
-    cx_ecfp_private_key_t cx_privateKey;
-    uint8_t privateKeyData[32];
+    cx_ecfp_private_key_t cx_privateKey = {0};
+    uint8_t privateKeyData[32] = {0};
     unsigned int info = 0;
 
     signature_t *const signature_object = (signature_t *) signature;
-    zxerr_t err = zxerr_ok;
+    volatile zxerr_t err = zxerr_unknown;
     BEGIN_TRY
     {
         TRY
@@ -172,7 +189,10 @@ zxerr_t crypto_sign(uint8_t *signature,
                 MEMZERO(signature, signatureMaxlen);
                 err = zxerr_unknown;
             }else{
-                *sigSize = SIG_RS_LEN;
+                *sigSize = sizeof_field(signature_t, r) +
+                    sizeof_field(signature_t, s) +
+                    sizeof_field(signature_t, v);
+                err = zxerr_ok;
             }
         }
         CATCH_ALL {
@@ -189,9 +209,35 @@ zxerr_t crypto_sign(uint8_t *signature,
     return err;
 }
 
+zxerr_t crypto_hashChunk(const uint8_t *buffer, uint32_t bufferLen,
+                         uint8_t *output, uint16_t outputLen,
+                         hash_chunk_operation_e operation) {
+    if ((operation == hash_update && buffer == NULL) ||
+        (operation == hash_finish && (output == NULL || outputLen < CX_SHA256_SIZE))) {
+        return zxerr_no_data;
+    }
+
+    switch (operation) {
+        case hash_start:
+            cx_blake2b_init2(&body_hash_ctx, 256, NULL, 0, NULL, 0);
+            break;
+
+        case hash_update:
+            cx_blake2b_update(&body_hash_ctx, buffer, bufferLen);
+            break;
+
+        case hash_finish:
+            cx_blake2b_final(&body_hash_ctx, output);
+            break;
+    }
+
+    return zxerr_ok;
+}
+
 #else
 
 #include "blake2.h"
+#include "hexutils.h"
 
 zxerr_t blake2b_hash(const unsigned char *in, unsigned int inLen,
                      unsigned char *out){
@@ -203,10 +249,18 @@ zxerr_t blake2b_hash(const unsigned char *in, unsigned int inLen,
     }
 }
 
+zxerr_t crypto_extractPublicKey(const uint32_t path[HDPATH_LEN_DEFAULT], uint8_t *pubKey, uint16_t pubKeyLen) {
+    const char *tmp = "7f747b67bd3fe63c2a736739dfe40156d622347346e70f68f51c178a75ce5537a087c03779";
+    parseHexString(pubKey, pubKeyLen, tmp);
+
+    return zxerr_ok;
+}
+
 #endif
 
 typedef struct {
     uint8_t publicKey[SECP256K1_PK_LEN];
+    uint8_t address[68];
 
 } __attribute__((packed)) answer_t;
 
@@ -223,9 +277,20 @@ zxerr_t crypto_fillAddress(uint8_t *buffer, uint16_t buffer_len, uint16_t *addrL
     zxerr_t err = crypto_extractPublicKey(hdPath, answer->publicKey, sizeof_field(answer_t, publicKey));
     if (err != zxerr_ok) {
         return err;
+     }
+
+    uint8_t addr_plus_prefix[1 + SECP256K1_PK_LEN];
+    MEMCPY(addr_plus_prefix + 1, answer->publicKey, SECP256K1_PK_LEN);
+    addr_plus_prefix[0] = 02;
+
+    err = encode_addr((char *)addr_plus_prefix, SECP256K1_PK_LEN+1, (char *)answer->address);
+
+    if (err != zxerr_ok) {
+        return err;
     }
 
-    *addrLen = sizeof_field(answer_t, publicKey);
+    *addrLen = sizeof_field(answer_t, address) +
+        sizeof_field(answer_t, publicKey);
     return zxerr_ok;
 }
 
@@ -240,9 +305,11 @@ zxerr_t encode_addr(char* address, const uint8_t addressLen, char* encodedAddr) 
 
 zxerr_t encode(char* address, const uint8_t addressLen, char* encodedAddr) {
     const uint8_t nibblesLen = 2 * addressLen;
-    uint8_t input_nibbles[nibblesLen];
-    uint8_t hash_input[BLAKE2B_256_SIZE];
-    MEMZERO(input_nibbles, nibblesLen);
+    if (nibblesLen > MAX_NIBBLE_LEN) {
+        return zxerr_encoding_failed;
+    }
+    uint8_t input_nibbles[MAX_NIBBLE_LEN] = {0};
+    uint8_t hash_input[BLAKE2B_256_SIZE] = {0};
 
     bytes_to_nibbles((uint8_t*)address, addressLen, input_nibbles);
     blake2b_hash((uint8_t*)address, addressLen, hash_input);
@@ -257,14 +324,40 @@ zxerr_t encode(char* address, const uint8_t addressLen, char* encodedAddr) {
         }
         char c = HEX_CHARS[char_index];
         if(is_alphabetic(c)) {
-            get_next_hash_bit(hash_input, &index, &offset) ? to_uppercase(&c) : to_lowercase(&c);
+            get_next_hash_bit((char *)hash_input, &index, &offset) ? to_uppercase((uint8_t*) &c) : to_lowercase((uint8_t*) &c);
         }
         encodedAddr[i] = c;
     }
     return zxerr_ok;
 }
 
-bool get_next_hash_bit(uint8_t* hash_input, uint8_t* index, uint8_t* offset) {
+zxerr_t encode_hex(char* bytes, const uint8_t bytesLen, char* output, uint16_t outputLen) {
+    const uint8_t nibblesLen = 2 * bytesLen;
+    if (bytesLen > BLAKE2B_256_SIZE || outputLen < 2 * bytesLen) {
+        return zxerr_encoding_failed;
+    }
+    uint8_t input_nibbles[2 * BLAKE2B_256_SIZE] = {0};
+
+    bytes_to_nibbles((uint8_t*)bytes, bytesLen, input_nibbles);
+
+    uint8_t offset = 0x00;
+    uint8_t index = 0x00;
+
+    for(int i = 0; i < nibblesLen; i++) {
+        const uint8_t char_index = input_nibbles[i];
+        if(char_index >= sizeof(HEX_CHARS)) {
+            return zxerr_out_of_bounds;
+        }
+        char c = HEX_CHARS[char_index];
+        if(is_alphabetic(c)) {
+            get_next_hash_bit(bytes, &index, &offset) ? to_uppercase((uint8_t*) &c) : to_lowercase((uint8_t*) &c);
+        }
+        output[i] = c;
+    }
+    return zxerr_ok;
+}
+
+bool get_next_hash_bit(char* hash_input, uint8_t* index, uint8_t* offset) {
     //Return true if following bit is 1
     bool ret = ((hash_input[*index] >> *offset) & 0x01) == 0x01;
     (*offset)++;
@@ -278,20 +371,6 @@ bool get_next_hash_bit(uint8_t* hash_input, uint8_t* index, uint8_t* offset) {
 bool is_alphabetic(const char byte) {
     return  (byte >= 0x61  && byte <= 0x7A) ||
             (byte >= 0x41  && byte <= 0x5A);
-}
-
-void to_uppercase(char* letter) {
-    //Check if lowercase letter
-    if(*letter >= 0x61  && *letter <= 0x7A) {
-        *letter = *letter - 0x20;
-    }
-}
-
-void to_lowercase(char* letter) {
-    //Check if uppercase letter
-    if(*letter >= 0x41  && *letter <= 0x5A) {
-        *letter = *letter + 0x20;
-    }
 }
 
 void bytes_to_nibbles(uint8_t* bytes,uint8_t bytesLen, uint8_t* nibbles) {

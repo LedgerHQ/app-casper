@@ -94,8 +94,10 @@ file(GLOB_RECURSE LIB_SRC
 
         ####
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/parser.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/app/src/parser_message.c
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/parser_impl.c
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/parser_special.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/app/src/runtime_arg.c
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/crypto.c
         )
 
