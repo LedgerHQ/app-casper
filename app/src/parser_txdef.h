@@ -38,6 +38,8 @@ extern "C" {
 #define PAYLOAD_FIELD_POS 1
 #define VALIDATORS_FIELD_POS 2
 
+#define BLAKE2B_256_SIZE 32
+
 typedef struct {
     uint8_t pubkeytype;
     uint32_t lenDependencies;
@@ -88,6 +90,8 @@ typedef struct {
     uint32_t totalLength;
     uint32_t itemOffset;
     bool hasAmount;
+    bool hasId;
+    bool hasSource;
 } ExecutableDeployItem;
 
 typedef struct {
@@ -172,14 +176,23 @@ typedef struct {
     args_type_e args_type;
     uint32_t runtime_args_len;
     uint32_t num_runtime_args;
+    uint32_t module_bytes_len;
     uint8_t numItems;
     uint8_t num_approvals;
+    uint8_t txnHash[BLAKE2B_256_SIZE];
 } parser_tx_txnV1_t;
 
 typedef enum {
     Deploy = 0,
     TransactionV1 = 1,
 } transaction_content_e;
+
+typedef enum {
+    StreamingStateNoStreaming = 0,
+    StreamingStateInit = 1,
+    StreamingStateInProgress = 2,
+    StreamingStateFinal = 3,
+} streaming_state_e;
 
 #ifdef __cplusplus
 }

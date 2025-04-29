@@ -11,6 +11,8 @@
 
 #define NO_ENTITY_VERSION_PRESENT 0xFFFFFFFF
 
+#define WASM_TOO_LARGE_ERROR_MSG "WASM too large"
+
 #define PARSER_ASSERT_OR_ERROR(CALL, ERROR) \
     if (!(CALL)) return ERROR;
 
@@ -25,39 +27,6 @@
         MEMCPY(buffer, (char *)(VALUE), VALUELEN);                         \
         pageString(outVal, outValLen, (char *)buffer, pageIdx, pageCount); \
         return parser_ok;                                                  \
-    }
-
-#define DISPLAY_RUNTIMEARG_U64(CTX)                                           \
-    {                                                                         \
-        uint64_t value = 0;                                                   \
-        CHECK_PARSER_ERR(readU64(CTX, &value));                               \
-        return parser_printU64(value, outVal, outValLen, pageIdx, pageCount); \
-    }
-
-#define DISPLAY_RUNTIMEARG_U32(CTX)                                           \
-    {                                                                         \
-        uint32_t value = 0;                                                   \
-        CHECK_PARSER_ERR(readU32(CTX, &value));                               \
-        return parser_printU32(value, outVal, outValLen, pageIdx, pageCount); \
-    }
-
-#define DISPLAY_RUNTIMEARG_U8(CTX)                                           \
-    {                                                                        \
-        uint8_t value = 0;                                                   \
-        CHECK_PARSER_ERR(readU8(CTX, &value));                               \
-        return parser_printU8(value, outVal, outValLen, pageIdx, pageCount); \
-    }
-
-#define DISPLAY_RUNTIMEARG_BYTES(CTX, LEN)                                                                          \
-    {                                                                                                               \
-        return parser_printBytes((const uint8_t *)((CTX)->buffer + (CTX)->offset), LEN, outVal, outValLen, pageIdx, \
-                                 pageCount);                                                                        \
-    }
-
-#define DISPLAY_RUNTIMEARG_ADDRESS(CTX, LEN)                                                                          \
-    {                                                                                                                 \
-        return parser_printAddress((const uint8_t *)((CTX)->buffer + (CTX)->offset), LEN, outVal, outValLen, pageIdx, \
-                                   pageCount);                                                                        \
     }
 
 #define DISPLAY_HEADER_U64(KEYNAME, HEADERPART, TX_CONTENT)                                              \
@@ -104,8 +73,8 @@ parser_error_t readU64(parser_context_t *ctx, uint64_t *result);
 parser_error_t readU32(parser_context_t *ctx, uint32_t *result);
 parser_error_t readU16(parser_context_t *ctx, uint16_t *result);
 parser_error_t readU8(parser_context_t *ctx, uint8_t *result);
-parser_error_t parser_init_context(parser_context_t *ctx, const uint8_t *buffer, uint16_t bufferSize);
-parser_error_t parser_init(parser_context_t *ctx, const uint8_t *buffer, uint16_t bufferSize);
+parser_error_t parser_init_context(parser_context_t *ctx, const uint8_t *buffer, uint16_t bufferLen, uint16_t bufferSize);
+parser_error_t parser_init(parser_context_t *ctx, const uint8_t *buffer, uint16_t bufferLen, uint16_t bufferSize);
 bool is_container_type(uint8_t cl_type);
 bool is_map_type(uint8_t cl_type);
 parser_error_t check_runtime_type(uint8_t cl_type);
@@ -124,3 +93,9 @@ parser_error_t parser_printU32(uint32_t value, char *outVal, uint16_t outValLen,
 parser_error_t parser_printU64(uint64_t value, char *outVal, uint16_t outValLen, uint8_t pageIdx, uint8_t *pageCount);
 const char *parser_getErrorDescription(parser_error_t err);
 parser_error_t add_thousand_separators(char *out, uint16_t outLen, const char *number);
+
+__attribute__((noinline)) parser_error_t display_runtimearg_u64(parser_context_t *ctx, char *outVal, uint16_t outValLen, uint8_t pageIdx, uint8_t *pageCount);
+__attribute__((noinline)) parser_error_t display_runtimearg_u32(parser_context_t *ctx, char *outVal, uint16_t outValLen, uint8_t pageIdx, uint8_t *pageCount);    
+__attribute__((noinline)) parser_error_t display_runtimearg_u8(parser_context_t *ctx, char *outVal, uint16_t outValLen, uint8_t pageIdx, uint8_t *pageCount);
+__attribute__((noinline)) parser_error_t display_runtimearg_bytes(parser_context_t *ctx, uint32_t len, char *outVal, uint16_t outValLen, uint8_t pageIdx, uint8_t *pageCount);
+__attribute__((noinline)) parser_error_t display_runtimearg_address(parser_context_t *ctx, uint32_t len, char *outVal, uint16_t outValLen, uint8_t pageIdx, uint8_t *pageCount);
