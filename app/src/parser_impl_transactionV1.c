@@ -122,61 +122,407 @@ parser_tx_txnV1_t parser_tx_obj_txnV1;
 #define FIELD_TAG_POS 0
 #define FIELD_DATA_POS 1
 
+/**
+ * @brief Reads and validates a TransactionV1 hash from the buffer
+ *
+ * @param[in] ctx Pointer to the parser context with the transaction data
+ * @param[out] v Pointer to the transaction V1 structure where the hash will be stored
+ *
+ * @return parser_error_t Parser error code
+ */
 static parser_error_t read_txV1_hash(parser_context_t *ctx, parser_tx_txnV1_t *v);
+
+/**
+ * @brief Reads and parses the TransactionV1 payload
+ *
+ * @param[in] ctx Pointer to the parser context with the transaction data
+ * @param[out] v Pointer to the transaction V1 structure to store the payload metadata
+ *
+ * @return parser_error_t Parser error code
+ */
 static parser_error_t read_txV1_payload(parser_context_t *ctx, parser_tx_txnV1_t *v);
+
+/**
+ * @brief Reads the TransactionV1 approvals (signatures)
+ *
+ * @param[in] ctx Pointer to the parser context with the transaction data
+ * @param[out] v Pointer to the transaction V1 structure to store approval information
+ *
+ * @return parser_error_t Parser error code
+ */
 static parser_error_t read_txV1_approvals(parser_context_t *ctx, parser_tx_txnV1_t *v);
+
+/**
+ * @brief Reads and processes the TransactionV1 header
+ *
+ * Parses initiator address, timestamp, TTL, chain name, and pricing mode
+ *
+ * @param[in] ctx Pointer to the parser context with the transaction data
+ * @param[out] v Pointer to the transaction V1 structure to store header information
+ *
+ * @return parser_error_t Parser error code
+ */
 static parser_error_t read_txV1_header(parser_context_t *ctx, parser_tx_txnV1_t *v);
+
+/**
+ * @brief Reads the TransactionV1 body from the buffer
+ *
+ * @param[in] ctx Pointer to the parser context with the transaction data
+ * @param[out] v Pointer to the transaction V1 structure to store body information
+ *
+ * @return parser_error_t Parser error code
+ */
 static parser_error_t read_txV1_body(parser_context_t *ctx, parser_tx_txnV1_t *v);
+
+/**
+ * @brief Reads the individual fields within the TransactionV1 body
+ *
+ * @param[in] ctx Pointer to the parser context with the transaction data
+ * @param[out] v Pointer to the transaction V1 structure to store body fields
+ *
+ * @return parser_error_t Parser error code
+ */
 static parser_error_t read_txV1_body_fields(parser_context_t *ctx, parser_tx_txnV1_t *v);
+
+/**
+ * @brief Reads the initiator address from the transaction header
+ *
+ * @param[in] ctx Pointer to the parser context with the transaction data
+ * @param[out] v Pointer to the transaction V1 structure to store the initiator address
+ *
+ * @return parser_error_t Parser error code
+ */
 static parser_error_t read_initiator_address(parser_context_t *ctx, parser_tx_txnV1_t *v);
+
+/**
+ * @brief Reads the chain name from the transaction header
+ *
+ * @param[in] ctx Pointer to the parser context with the transaction data
+ * @param[out] v Pointer to the transaction V1 structure to store the chain name
+ *
+ * @return parser_error_t Parser error code
+ */
 static parser_error_t read_chain_name(parser_context_t *ctx, parser_tx_txnV1_t *v);
+
+/**
+ * @brief Reads the pricing mode from the transaction header
+ *
+ * Handles different pricing modes (Limited, Fixed, Prepaid)
+ *
+ * @param[in] ctx Pointer to the parser context with the transaction data
+ * @param[out] v Pointer to the transaction V1 structure to store pricing mode info
+ *
+ * @return parser_error_t Parser error code
+ */
 static parser_error_t read_pricing_mode(parser_context_t *ctx, parser_tx_txnV1_t *v);
+
+/**
+ * @brief Reads the runtime arguments from the transaction body
+ *
+ * @param[in] ctx Pointer to the parser context with the transaction data
+ * @param[out] v Pointer to the transaction V1 structure to store arguments
+ *
+ * @return parser_error_t Parser error code
+ */
 static parser_error_t read_args(parser_context_t *ctx, parser_tx_txnV1_t *v);
+
+/**
+ * @brief Reads and validates a field key from the buffer
+ *
+ * @param[in] ctx Pointer to the parser context with the transaction data
+ * @param[in] expected_key The expected key value to validate against
+ *
+ * @return parser_error_t Parser error code
+ */
 static parser_error_t read_field_key(parser_context_t *ctx, uint16_t expected_key);
+
+/**
+ * @brief Reads the target information from the transaction body
+ *
+ * Handles different target types (Native, Stored, Session)
+ *
+ * @param[in] ctx Pointer to the parser context with the transaction data
+ * @param[out] v Pointer to the transaction V1 structure to store target info
+ *
+ * @return parser_error_t Parser error code
+ */
 static parser_error_t read_target(parser_context_t *ctx, parser_tx_txnV1_t *v);
+
+/**
+ * @brief Reads the entry point from the transaction body
+ *
+ * Parses different entry point types and their associated data
+ *
+ * @param[in] ctx Pointer to the parser context with the transaction data
+ * @param[out] v Pointer to the transaction V1 structure to store entry point info
+ *
+ * @return parser_error_t Parser error code
+ */
 static parser_error_t read_entry_point(parser_context_t *ctx, parser_tx_txnV1_t *v);
+
+/**
+ * @brief Reads the scheduling information from the transaction body
+ *
+ * @param[in] ctx Pointer to the parser context with the transaction data
+ *
+ * @return parser_error_t Parser error code
+ */
 static parser_error_t read_scheduling(parser_context_t *ctx);
+
+/**
+ * @brief Converts an entry point type enum to a human-readable string
+ *
+ * @param[in] entry_point_type The entry point type enum value
+ * @param[out] outVal Buffer to store the resulting string
+ * @param[in] outValLen Maximum length of the output buffer
+ */
 static void entry_point_to_str(entry_point_type_e entry_point_type, char *outVal, uint16_t outValLen);
+
+/**
+ * @brief Formats custom contract execution items for display
+ *
+ * @param[in] ctx Pointer to the parser context with the transaction data
+ * @param[in] displayIdx Index of the item to display
+ * @param[out] outKey Buffer to store the key string
+ * @param[in] outKeyLen Maximum length of the key buffer
+ * @param[out] outVal Buffer to store the value string
+ * @param[in] outValLen Maximum length of the value buffer
+ * @param[in] pageIdx Current page index for paginated output
+ * @param[out] pageCount Total number of pages for the current item
+ *
+ * @return parser_error_t Parser error code
+ */
 static parser_error_t parser_getItem_txV1_Custom(parser_context_t *ctx, uint8_t displayIdx, char *outKey,
                                                  uint16_t outKeyLen, char *outVal, uint16_t outValLen, uint8_t pageIdx,
                                                  uint8_t *pageCount);
+
+/**
+ * @brief Formats transfer items for display
+ *
+ * @param[in] ctx Pointer to the parser context with the transaction data
+ * @param[in] displayIdx Index of the item to display
+ * @param[out] outKey Buffer to store the key string
+ * @param[in] outKeyLen Maximum length of the key buffer
+ * @param[out] outVal Buffer to store the value string
+ * @param[in] outValLen Maximum length of the value buffer
+ * @param[in] pageIdx Current page index for paginated output
+ * @param[out] pageCount Total number of pages for the current item
+ *
+ * @return parser_error_t Parser error code
+ */
 static parser_error_t parser_getItem_txV1_Transfer(parser_context_t *ctx, uint8_t displayIdx, char *outKey,
                                                    uint16_t outKeyLen, char *outVal, uint16_t outValLen,
                                                    uint8_t pageIdx, uint8_t *pageCount);
+
+/**
+ * @brief Formats pricing mode items for display
+ *
+ * @param[in] ctx Pointer to the parser context with the transaction data
+ * @param[in] displayIdx Index of the item to display
+ * @param[out] outKey Buffer to store the key string
+ * @param[in] outKeyLen Maximum length of the key buffer
+ * @param[out] outVal Buffer to store the value string
+ * @param[in] outValLen Maximum length of the value buffer
+ * @param[in] pageIdx Current page index for paginated output
+ * @param[out] pageCount Total number of pages for the current item
+ *
+ * @return parser_error_t Parser error code
+ */
 static parser_error_t parser_getItem_pricing_mode(parser_context_t *ctx, uint8_t displayIdx, char *outKey,
                                                   uint16_t outKeyLen, char *outVal, uint16_t outValLen, uint8_t pageIdx,
                                                   uint8_t *pageCount);
+
+/**
+ * @brief Formats add bid items for display
+ *
+ * @param[in] ctx Pointer to the parser context with the transaction data
+ * @param[in] displayIdx Index of the item to display
+ * @param[out] outKey Buffer to store the key string
+ * @param[in] outKeyLen Maximum length of the key buffer
+ * @param[out] outVal Buffer to store the value string
+ * @param[in] outValLen Maximum length of the value buffer
+ * @param[in] pageIdx Current page index for paginated output
+ * @param[out] pageCount Total number of pages for the current item
+ *
+ * @return parser_error_t Parser error code
+ */
 static parser_error_t parser_getItem_txV1_AddBid(parser_context_t *ctx, uint8_t displayIdx, char *outKey,
                                                  uint16_t outKeyLen, char *outVal, uint16_t outValLen, uint8_t pageIdx,
                                                  uint8_t *pageCount);
+
+/**
+ * @brief Formats withdraw bid items for display
+ *
+ * @param[in] ctx Pointer to the parser context with the transaction data
+ * @param[in] displayIdx Index of the item to display
+ * @param[out] outKey Buffer to store the key string
+ * @param[in] outKeyLen Maximum length of the key buffer
+ * @param[out] outVal Buffer to store the value string
+ * @param[in] outValLen Maximum length of the value buffer
+ * @param[in] pageIdx Current page index for paginated output
+ * @param[out] pageCount Total number of pages for the current item
+ *
+ * @return parser_error_t Parser error code
+ */
 static parser_error_t parser_getItem_txV1_WithdrawBid(parser_context_t *ctx, uint8_t displayIdx, char *outKey,
                                                       uint16_t outKeyLen, char *outVal, uint16_t outValLen,
                                                       uint8_t pageIdx, uint8_t *pageCount);
+
+/**
+ * @brief Formats delegate items for display
+ *
+ * @param[in] ctx Pointer to the parser context with the transaction data
+ * @param[in] displayIdx Index of the item to display
+ * @param[out] outKey Buffer to store the key string
+ * @param[in] outKeyLen Maximum length of the key buffer
+ * @param[out] outVal Buffer to store the value string
+ * @param[in] outValLen Maximum length of the value buffer
+ * @param[in] pageIdx Current page index for paginated output
+ * @param[out] pageCount Total number of pages for the current item
+ *
+ * @return parser_error_t Parser error code
+ */
 static parser_error_t parser_getItem_txV1_Delegate(parser_context_t *ctx, uint8_t displayIdx, char *outKey,
                                                    uint16_t outKeyLen, char *outVal, uint16_t outValLen,
                                                    uint8_t pageIdx, uint8_t *pageCount);
+
+/**
+ * @brief Formats undelegate items for display
+ *
+ * @param[in] ctx Pointer to the parser context with the transaction data
+ * @param[in] displayIdx Index of the item to display
+ * @param[out] outKey Buffer to store the key string
+ * @param[in] outKeyLen Maximum length of the key buffer
+ * @param[out] outVal Buffer to store the value string
+ * @param[in] outValLen Maximum length of the value buffer
+ * @param[in] pageIdx Current page index for paginated output
+ * @param[out] pageCount Total number of pages for the current item
+ *
+ * @return parser_error_t Parser error code
+ */
 static parser_error_t parser_getItem_txV1_Undelegate(parser_context_t *ctx, uint8_t displayIdx, char *outKey,
                                                      uint16_t outKeyLen, char *outVal, uint16_t outValLen,
                                                      uint8_t pageIdx, uint8_t *pageCount);
+
+/**
+ * @brief Formats redelegate items for display
+ *
+ * @param[in] ctx Pointer to the parser context with the transaction data
+ * @param[in] displayIdx Index of the item to display
+ * @param[out] outKey Buffer to store the key string
+ * @param[in] outKeyLen Maximum length of the key buffer
+ * @param[out] outVal Buffer to store the value string
+ * @param[in] outValLen Maximum length of the value buffer
+ * @param[in] pageIdx Current page index for paginated output
+ * @param[out] pageCount Total number of pages for the current item
+ *
+ * @return parser_error_t Parser error code
+ */
 static parser_error_t parser_getItem_txV1_Redelegate(parser_context_t *ctx, uint8_t displayIdx, char *outKey,
                                                      uint16_t outKeyLen, char *outVal, uint16_t outValLen,
                                                      uint8_t pageIdx, uint8_t *pageCount);
+
+/**
+ * @brief Formats activate bid items for display
+ *
+ * @param[in] ctx Pointer to the parser context with the transaction data
+ * @param[in] displayIdx Index of the item to display
+ * @param[out] outKey Buffer to store the key string
+ * @param[in] outKeyLen Maximum length of the key buffer
+ * @param[out] outVal Buffer to store the value string
+ * @param[in] outValLen Maximum length of the value buffer
+ * @param[in] pageIdx Current page index for paginated output
+ * @param[out] pageCount Total number of pages for the current item
+ *
+ * @return parser_error_t Parser error code
+ */
 static parser_error_t parser_getItem_txV1_ActivateBid(parser_context_t *ctx, uint8_t displayIdx, char *outKey,
                                                       uint16_t outKeyLen, char *outVal, uint16_t outValLen,
                                                       uint8_t pageIdx, uint8_t *pageCount);
+
+/**
+ * @brief Formats change public key items for display
+ *
+ * @param[in] ctx Pointer to the parser context with the transaction data
+ * @param[in] displayIdx Index of the item to display
+ * @param[out] outKey Buffer to store the key string
+ * @param[in] outKeyLen Maximum length of the key buffer
+ * @param[out] outVal Buffer to store the value string
+ * @param[in] outValLen Maximum length of the value buffer
+ * @param[in] pageIdx Current page index for paginated output
+ * @param[out] pageCount Total number of pages for the current item
+ *
+ * @return parser_error_t Parser error code
+ */
 static parser_error_t parser_getItem_txV1_ChangePublicKey(parser_context_t *ctx, uint8_t displayIdx, char *outKey,
                                                           uint16_t outKeyLen, char *outVal, uint16_t outValLen,
                                                           uint8_t pageIdx, uint8_t *pageCount);
+
+/**
+ * @brief Formats add reservations items for display
+ *
+ * @param[in] ctx Pointer to the parser context with the transaction data
+ * @param[in] displayIdx Index of the item to display
+ * @param[out] outKey Buffer to store the key string
+ * @param[in] outKeyLen Maximum length of the key buffer
+ * @param[out] outVal Buffer to store the value string
+ * @param[in] outValLen Maximum length of the value buffer
+ * @param[in] pageIdx Current page index for paginated output
+ * @param[out] pageCount Total number of pages for the current item
+ *
+ * @return parser_error_t Parser error code
+ */
 static parser_error_t parser_getItem_txV1_AddReservations(parser_context_t *ctx, uint8_t displayIdx, char *outKey,
                                                           uint16_t outKeyLen, char *outVal, uint16_t outValLen,
                                                           uint8_t pageIdx, uint8_t *pageCount);
+
+/**
+ * @brief Formats cancel reservations items for display
+ *
+ * @param[in] ctx Pointer to the parser context with the transaction data
+ * @param[in] displayIdx Index of the item to display
+ * @param[out] outKey Buffer to store the key string
+ * @param[in] outKeyLen Maximum length of the key buffer
+ * @param[out] outVal Buffer to store the value string
+ * @param[in] outValLen Maximum length of the value buffer
+ * @param[in] pageIdx Current page index for paginated output
+ * @param[out] pageCount Total number of pages for the current item
+ *
+ * @return parser_error_t Parser error code
+ */
 static parser_error_t parser_getItem_txV1_CancelReservations(parser_context_t *ctx, uint8_t displayIdx, char *outKey,
                                                              uint16_t outKeyLen, char *outVal, uint16_t outValLen,
                                                              uint8_t pageIdx, uint8_t *pageCount);
+
+/**
+ * @brief Formats burn items for display
+ *
+ * @param[in] ctx Pointer to the parser context with the transaction data
+ * @param[in] displayIdx Index of the item to display
+ * @param[out] outKey Buffer to store the key string
+ * @param[in] outKeyLen Maximum length of the key buffer
+ * @param[out] outVal Buffer to store the value string
+ * @param[in] outValLen Maximum length of the value buffer
+ * @param[in] pageIdx Current page index for paginated output
+ * @param[out] pageCount Total number of pages for the current item
+ *
+ * @return parser_error_t Parser error code
+ */
 static parser_error_t parser_getItem_txV1_Burn(parser_context_t *ctx, uint8_t displayIdx, char *outKey,
                                                 uint16_t outKeyLen, char *outVal, uint16_t outValLen, uint8_t pageIdx,
                                                 uint8_t *pageCount);
 
+/**
+ * @brief Validates the transaction data for native transfer operations
+ *
+ * Performs sanity checks on a transaction to ensure it has the correct structure
+ * and parameters for its declared entry point type.
+ *
+ * @param[in] ctx Pointer to the parser context with the transaction data
+ * @param[in] v Pointer to the transaction V1 structure
+ *
+ * @return parser_error_t Parser error code
+ */
 static parser_error_t check_sanity_native_transfer(parser_context_t *ctx, parser_tx_txnV1_t *v);
 
 parser_error_t index_headerpart_txnV1(parser_header_txnV1_t header, header_part_e part, parser_context_t *ctx) {
@@ -261,6 +607,14 @@ parser_error_t parser_read_transactionV1(parser_context_t *ctx, parser_tx_txnV1_
 }
 
 static parser_error_t read_txV1_hash(parser_context_t *ctx, parser_tx_txnV1_t *v) {
+    if (ctx->offset + HASH_LENGTH > ctx->bufferLen) {
+        return parser_unexpected_buffer_end;
+    }
+    
+    if (HASH_LENGTH > sizeof(v->txnHash)) {
+        return parser_unexpected_value;
+    }
+    
     MEMCPY(v->txnHash, ctx->buffer + ctx->offset, HASH_LENGTH);
     ctx->offset += HASH_LENGTH;
 
@@ -733,6 +1087,10 @@ static parser_error_t read_scheduling(parser_context_t *ctx) {
 }
 
 parser_error_t _validateTxV1(const parser_context_t *ctx, const parser_tx_txnV1_t *v) {
+    if (ctx == NULL || v == NULL) {
+        return parser_unexpected_error;
+    }
+
     uint8_t txnHash[BLAKE2B_256_SIZE] = {0};
     if (tx_isStreaming()) {
         MEMCPY(txnHash, tx_get_incremental_hash(), BLAKE2B_256_SIZE);
@@ -799,6 +1157,10 @@ static void entry_point_to_str(entry_point_type_e entry_point_type, char *outVal
 
 parser_error_t _getItemTxV1(parser_context_t *ctx, uint8_t displayIdx, char *outKey, uint16_t outKeyLen, char *outVal,
                             uint16_t outValLen, uint8_t pageIdx, uint8_t *pageCount) {
+    if (ctx == NULL || outKey == NULL || outVal == NULL || pageCount == NULL) {
+        return parser_unexpected_error;
+    }
+
     MEMZERO(outKey, outKeyLen);
     MEMZERO(outVal, outValLen);
     snprintf(outKey, outKeyLen, "?");
@@ -1059,11 +1421,15 @@ static parser_error_t parser_getItem_txV1_Custom(parser_context_t *ctx, uint8_t 
 
     uint8_t args_hash[32] = {0};
     if (parser_tx_obj_txnV1.args_type == RuntimeArgs) {
-        blake2b_hash(ctx->buffer + parser_tx_obj_txnV1.runtime_args_offset - 4,
-                     parser_tx_obj_txnV1.runtime_args_len - 1, args_hash);
+        if (blake2b_hash(ctx->buffer + parser_tx_obj_txnV1.runtime_args_offset - 4,
+                     parser_tx_obj_txnV1.runtime_args_len - 1, args_hash) != zxerr_ok) {
+            return parser_unexpected_value;
+        }
     } else {
-        blake2b_hash(ctx->buffer + parser_tx_obj_txnV1.runtime_args_offset, parser_tx_obj_txnV1.runtime_args_len,
-                     args_hash);
+        if (blake2b_hash(ctx->buffer + parser_tx_obj_txnV1.runtime_args_offset, parser_tx_obj_txnV1.runtime_args_len,
+                     args_hash) != zxerr_ok) {
+            return parser_unexpected_value;
+        }
     }
 
     snprintf(outKey, outKeyLen, "Args hash");
@@ -1144,7 +1510,7 @@ static parser_error_t parser_getItem_pricing_mode(parser_context_t *ctx, uint8_t
                 char buffer[20] = {0};
                 uint64_to_str(buffer, sizeof(buffer), value);
                 char formattedPayment[30] = {0};
-                add_thousand_separators(formattedPayment, sizeof(formattedPayment), buffer);
+                CHECK_PARSER_ERR(add_thousand_separators(formattedPayment, sizeof(formattedPayment), buffer));
                 pageString(outVal, outValLen, formattedPayment, pageIdx, pageCount);
                 break;
             case PricingModeFixed:
