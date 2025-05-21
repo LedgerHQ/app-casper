@@ -1,73 +1,86 @@
 /*******************************************************************************
-*  (c) 2019 Zondax GmbH
-*
-*  Licensed under the Apache License, Version 2.0 (the "License");
-*  you may not use this file except in compliance with the License.
-*  You may obtain a copy of the License at
-*
-*      http://www.apache.org/licenses/LICENSE-2.0
-*
-*  Unless required by applicable law or agreed to in writing, software
-*  distributed under the License is distributed on an "AS IS" BASIS,
-*  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-*  See the License for the specific language governing permissions and
-*  limitations under the License.
-********************************************************************************/
+ *  (c) 2019 Zondax GmbH
+ *
+ *  Licensed under the Apache License, Version 2.0 (the "License");
+ *  you may not use this file except in compliance with the License.
+ *  You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing, software
+ *  distributed under the License is distributed on an "AS IS" BASIS,
+ *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *  See the License for the specific language governing permissions and
+ *  limitations under the License.
+ ********************************************************************************/
 #pragma once
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include "parser_txdef.h"
-#include <stdint.h>
 #include <stddef.h>
+#include <stdint.h>
 
-#define CHECK_PARSER_ERR(__CALL) { \
-    parser_error_t __err = __CALL;  \
-    CHECK_APP_CANARY()  \
-    if (__err!=parser_ok) return __err;}
+#include "parser_txdef.h"
+#include "crypto.h"
+
+#define CHECK_PARSER_ERR(__CALL)              \
+    {                                         \
+        parser_error_t __err = __CALL;        \
+        CHECK_APP_CANARY()                    \
+        if (__err != parser_ok) return __err; \
+    }
 
 typedef enum {
     // Generic errors
     parser_ok = 0,
-    parser_no_data,
-    parser_init_context_empty,
-    parser_display_idx_out_of_range,
-    parser_display_page_out_of_range,
-    parser_unexepected_error,
+    parser_no_data = 1,
+    parser_init_context_empty = 2,
+    parser_display_idx_out_of_range = 3,
+    parser_display_page_out_of_range = 4,
+    parser_unexpected_error = 5,
+    parser_blind_sign_required = 6,
     // Cbor
-    parser_cbor_unexpected,
-    parser_cbor_unexpected_EOF,
-    parser_cbor_not_canonical,
+    parser_cbor_unexpected = 7,
+    parser_cbor_unexpected_EOF = 8,
+    parser_cbor_not_canonical = 9,
     // Coin specific
-    parser_unexpected_tx_version,
-    parser_unexpected_type, //10
-    parser_unexpected_method,
-    parser_unexpected_buffer_end,
-    parser_unexpected_value,
-    parser_unexpected_number_items,
-    parser_unexpected_characters,
-    parser_unexpected_field,
-    parser_value_out_of_range,
-    parser_invalid_address,
+    parser_unexpected_tx_version = 10,
+    parser_unexpected_type = 11,
+    parser_unexpected_method = 12,
+    parser_unexpected_buffer_end = 13,
+    parser_unexpected_value = 14,
+    parser_unexpected_number_items = 15,
+    parser_unexpected_number_fields = 16,
+    parser_unexpected_characters = 17,
+    parser_unexpected_field = 18,
+    parser_unexpected_field_offset = 19,
+    parser_value_out_of_range = 20,
+    parser_invalid_address = 21,
     // Context related errors
-    parser_context_mismatch,
-    parser_context_unexpected_size, //20
-    parser_context_invalid_chars,
-    parser_context_unknown_prefix,
+    parser_context_mismatch = 22,
+    parser_context_unexpected_size = 23,
+    parser_context_invalid_chars = 24,
+    parser_context_unknown_prefix = 25,
     // Required fields
-    parser_required_nonce,
-    parser_required_method,
-    //Casper specific
-    parser_runtimearg_notfound,
+    parser_required_nonce = 26,
+    parser_required_method = 27,
+    // Casper specific
+    parser_runtimearg_notfound = 28,
+    parser_invalid_stored_contract = 29,
+    parser_wasm_too_large = 30,
 } parser_error_t;
 
 typedef struct {
     const uint8_t *buffer;
     uint16_t bufferLen;
+    uint16_t bufferSize;
     uint16_t offset;
-    parser_tx_t *tx_obj;
+    void *tx_obj;  // Can be either parser_tx_deploy_t or parser_tx_txnV1_t
+    transaction_content_e tx_content;
+    uint8_t txnV1_hash[BLAKE2B_256_SIZE];
+    bool isStreaming;
 } parser_context_t;
 
 #ifdef __cplusplus
