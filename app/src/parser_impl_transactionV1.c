@@ -70,6 +70,15 @@
 
 #define MINIMUM_RUNTIME_ARGS_NATIVE_TRANSFER 2
 
+// Upper bound on runtime args accepted per TransactionV1. The aggregate
+// numItems counter used by the UI layer is uint8_t; its worst-case non-
+// runtime-arg population across all entry-point shapes is 13 rows
+// (Txn hash, approvals, Account, Timestamp, TTL, Chain ID, Payment,
+// Max gs prce, Execution, Entry-point, Target address/name + Version,
+// Type). Capping at 235 leaves ~7 rows of slack for any future base-item
+// additions while keeping the sum comfortably below UINT8_MAX.
+#define MAX_RUNTIME_ARGS_PER_TX 235
+
 #define INCR_NUM_ITEMS(v, only_in_expert_mode) \
     {                                          \
         if (only_in_expert_mode) {             \
@@ -742,6 +751,16 @@ static parser_error_t read_initiator_address(parser_context_t *ctx, parser_tx_tx
 static parser_error_t read_chain_name(parser_context_t *ctx, parser_tx_txnV1_t *v) {
     uint32_t len = 0;
     CHECK_PARSER_ERR(read_string(ctx, &len));
+
+    // Reject embedded NUL bytes so the C-string-oriented pageString display
+    // helper cannot silently truncate the rendered Chain ID below the signed
+    // byte count. After read_string the string occupies [offset - len, offset).
+    for (uint32_t i = 0; i < len; i++) {
+        if (ctx->buffer[ctx->offset - len + i] == '\0') {
+            return parser_unexpected_characters;
+        }
+    }
+
     v->header.chain_name_len = len;
     return parser_ok;
 }
@@ -841,7 +860,14 @@ static parser_error_t read_args(parser_context_t *ctx, parser_tx_txnV1_t *v) {
         v->args_type = RuntimeArgs;
         CHECK_PARSER_ERR(readU32(ctx, &v->num_runtime_args));
 
-        v->runtime_args_offset = ctx->offset;
+        if (v->num_runtime_args > MAX_RUNTIME_ARGS_PER_TX) {
+            return parser_unexpected_number_items;
+        }
+
+        if (ctx->offset > UINT8_MAX) {
+            return parser_value_out_of_range;
+        }
+        v->runtime_args_offset = (uint8_t)ctx->offset;
 
         for (uint32_t i = 0; i < v->num_runtime_args; i++) {
             uint32_t name_len = 0;
@@ -850,7 +876,10 @@ static parser_error_t read_args(parser_context_t *ctx, parser_tx_txnV1_t *v) {
         }
     } else if (tag == TAG_BYTES_REPR) {
         v->args_type = BytesRepr;
-        v->runtime_args_offset = ctx->offset + sizeof(uint32_t);
+        if (ctx->offset > UINT8_MAX - sizeof(uint32_t)) {
+            return parser_value_out_of_range;
+        }
+        v->runtime_args_offset = (uint8_t)(ctx->offset + sizeof(uint32_t));
         uint32_t len = 0;
         CHECK_PARSER_ERR(read_bytes(ctx, &len));
         v->runtime_args_len = len;
@@ -1840,7 +1869,7 @@ static parser_error_t parser_getItem_txV1_AddReservations(parser_context_t *ctx,
     if (addrsv_display_idx == 0) {
         snprintf(outKey, outKeyLen, "Rsrv len");
 
-        parser_printU32((uint32_t) * (ctx->buffer + ctx->offset), outVal, outValLen, pageIdx, pageCount);
+        parser_printU32((uint32_t)*(ctx->buffer + ctx->offset), outVal, outValLen, pageIdx, pageCount);
         return parser_ok;
     }
 
@@ -1879,7 +1908,7 @@ static parser_error_t parser_getItem_txV1_CancelReservations(parser_context_t *c
 
         CHECK_PARSER_ERR(parser_runtimeargs_getData("delegators", &dataLength, &datatype, num_items, ctx))
 
-        parser_printU32((uint32_t) * (ctx->buffer + ctx->offset), outVal, outValLen, pageIdx, pageCount);
+        parser_printU32((uint32_t)*(ctx->buffer + ctx->offset), outVal, outValLen, pageIdx, pageCount);
         return parser_ok;
     }
 
